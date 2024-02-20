@@ -1,0 +1,72 @@
+.tab{
+    border-collapse: collapse;
+    width: 100%;
+}
+.tab th, .tab td {
+    border: 1px solid #ddd;
+    padding: 8px;
+    text-align: left;
+}
+
+.form {
+    margin: 20px;
+}
+
+.form-control,select {
+    margin-bottom: 10px;
+    width: 80%; 
+}
+
+.ad{
+    display: flex;
+    justify-content: flex-end;
+    align-items: flex-start;
+    min-height: 10vh;
+    margin: 10px;
+}
+
+select{
+    border: 1px solid #ddd;
+    padding: 7px;
+    text-align: left;
+    border-radius: 8px
+}
+
+.btn-primary {
+    margin-top: 20px;
+}
+
+#ad-space{
+    margin-right: 10px;
+}
+
+input[type='radio'] {
+    margin-left: 10px;
+    margin-right: 5px;
+    height: 2vh;
+}
+.custom-modal {
+    width: 80%;
+    max-width: none; 
+}
+.stat2{
+    width: 20%;
+    margin-right: 5px !important;
+}
+.check{
+    margin-right: 5px;
+    transform: scale(1.5);
+}
+.error{
+    color: red;
+}
+.ms{
+    margin-left: 50px;
+}
+#std-code{
+    background-color: #f7ececa6;
+    cursor: not-allowed;
+}
+.close{
+    margin-top: 20px;
+}
