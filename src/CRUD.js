@@ -1,16 +1,24 @@
-import React, {useState, useEffect, Fragment} from 'react';
-import Table from 'react-bootstrap/Table';
-import 'bootstrap/dist/css/bootstrap.min.css';
-import Button from 'react-bootstrap/Button';
-import Modal from 'react-bootstrap/Modal';
-import Row from 'react-bootstrap/Row';
-import Col from 'react-bootstrap/Col';
-//import Container from 'react-bootstrap/Container';
-import './style.css'
+import React, {useState, useEffect, Fragment, useRef} from 'react';
+import './style.css';
 import axios from 'axios';
 import { ToastContainer, toast } from 'react-toastify';
 import 'react-toastify/dist/ReactToastify.css';
 import {student_url, api_url} from './configuration';
+import Header from './Header';
+import Footer from './Footer';
+import ConfirmationDialog from './Confirmation';
+import BorderColorIcon from '@mui/icons-material/BorderColor';
+import DeleteIcon from '@mui/icons-material/Delete';
+import AddIcon from '@mui/icons-material/Add';
+import KeyboardDoubleArrowLeftIcon from '@mui/icons-material/KeyboardDoubleArrowLeft';
+import KeyboardDoubleArrowRightIcon from '@mui/icons-material/KeyboardDoubleArrowRight';
+import ArrowUpwardIcon from '@mui/icons-material/ArrowUpward';
+import ArrowDownwardIcon from '@mui/icons-material/ArrowDownward';
+import SwapVertIcon from '@mui/icons-material/SwapVert';
+import SaveIcon from '@mui/icons-material/Save';
+import Tooltip from '@mui/material/Tooltip';
+import SearchBar from './SearchBar';
+import * as XLSX from 'xlsx';
 
 
 const CRUD = () => {
@@ -20,6 +28,15 @@ const CRUD = () => {
     const [showForm, setShowForm] = useState(false);
 
     const [selectedRows, setSelectedRows] = useState([]);
+
+    const [isConfirmationDialogOpen, setIsConfirmationDialogOpen] = useState(false);
+
+    const [pageNumber, setPageNumber] = useState(1);
+    const [totalPages, setTotalPages] = useState(1); 
+    const [pageSize, setPageSize] = useState(5);
+    const [searchTerm, setSearchTerm] = useState('');
+    const [sortOrder, setSortOrder] = useState('none'); 
+
 
     const [validationErrors, setValidationErrors] = useState({
         name: '',
@@ -35,6 +52,7 @@ const CRUD = () => {
         }
         )
         setShow(false);
+        document.body.classList.remove('modal-open');
     }
     const handleShow = () => setShow(true);
 
@@ -55,6 +73,7 @@ const CRUD = () => {
         setStatus(4);
         setIsActive(0);
         setShowForm(false);
+        document.body.classList.remove('modal-open');
     };
     const handleForm = () => setShowForm(true);
 
@@ -96,11 +115,27 @@ const CRUD = () => {
     const [data, setData] = useState([]);
     const [stateName, setStateName] = useState('');
     const [cityName, setCityName] = useState('');
+    const modalRef = useRef();
+    const [invalid, setInvalid] = useState(false);
 
-    useEffect(() =>{
+    useEffect(() => {
         getStates();
-        getData (); 
-    }, []);
+        getData(pageNumber, pageSize, searchTerm, sortOrder);
+    
+        const handleDocumentClick = (event) => {
+            const modalContainer = modalRef.current;
+            if (modalContainer && !modalContainer.contains(event.target)) {
+                handleCloseForm();
+                handleClose();
+            }
+        };
+    
+        document.addEventListener('mousedown', handleDocumentClick);
+    
+        return () => {
+            document.removeEventListener('mousedown', handleDocumentClick);
+        };
+    }, [pageNumber, pageSize, searchTerm, sortOrder]);
 
 
     const getStates = async () => {
@@ -121,24 +156,76 @@ const CRUD = () => {
         }
     };
 
-    const getData = () =>{
-        axios.get(student_url)
+    const getData = (pageNumber, pageSize, search = '', sortOrder = 'none', shouldExport = false) =>{
+        axios.get(`${student_url}?pageNumber=${pageNumber}&pageSize=${pageSize}&search=${search}&sortOrder=${sortOrder}`)
         .then((result)=>{
-            setData(result.data)
-            setCode(result.data[0]?.code); 
+            setData(result.data.data)
+            setCode(result.data.data[0]?.code);    
+            setTotalPages(result.data.totalPages);
+        
+        if (shouldExport) {
+            exportToExcel(result.data.data, 'Student_Record');
+        }
         })
         .catch((error)=>{
             console.log(error)
         })
     }
 
-      
-    const handleAddButtonClick = () => {
-        handleForm();
+    const handleSearch = (searchTerm) => {
+        setSearchTerm(searchTerm);
+        setPageNumber(1); 
+        getData(1, pageSize, searchTerm, sortOrder);
     };
+
+    const exportToExcel = (data, fileName) => {
+        const ws = XLSX.utils.json_to_sheet(data);
+        const wb = XLSX.utils.book_new();
+        XLSX.utils.book_append_sheet(wb, ws, 'Sheet1');
+        XLSX.writeFile(wb, `${fileName}.xlsx`);
+    };
+
+    const handleSorting = () => {
+        // setSortOrder((prevOrder) => (prevOrder === 'asc' ? 'desc' : 'asc'));
+        setSortOrder((prevOrder) => (prevOrder === null ? 'asc' : prevOrder === 'asc' ? 'desc' : 'asc'));
+        getData(pageNumber, pageSize, searchTerm, sortOrder);
+    };
+
+    const handleExportClick = () => {
+        getData(pageNumber, pageSize, searchTerm, sortOrder, true);
+    };
+
+    const handlePrevious = () => {
+        if (pageNumber > 1) {
+            setPageNumber(pageNumber - 1);
+        }
+    };
+    
+    const handleNext = () => {
+        if (pageNumber < totalPages) {
+            setPageNumber(pageNumber + 1);
+        }
+    };
+
+    const handleItemsPerPageChange = (value) => {
+        setPageSize(value);
+        setPageNumber(1);
+        getData(1, value);
+    };
+    
+      const renderDropdownOptions = () => {
+        const options = [5, 10, 20, 50, 100];
+        return options.map((option) => (
+          <option key={option} value={option}>
+            {option}
+          </option>
+        ));
+      };
+
 
     const handleEdit = (id) =>{
         handleShow(); 
+        document.body.classList.add('modal-open');
         axios.get(`${student_url}/${id}`)
         .then((result)=>{
             setEditCode(result.data.code);
@@ -179,23 +266,34 @@ const CRUD = () => {
         if (selectedRows.length === 0) {
             alert('Please select rows to delete.');
         } else {
-            if(window.confirm("Are you sure you want to delete this student?")==true){
-            
-                const url = `${student_url}/delete-multiple`;
-            
-                axios
-                    .delete(url, { data: selectedRows })
-                    .then((result) => {
-                    toast.success('Selected students have been deleted');
-                    const updatedData = data.filter((item) => !selectedRows.includes(item.id));
-                    setData(updatedData);
-                    })
-                    .catch((error) => {
-                    console.error('Error deleting students:', error);
-                    toast.error('Error deleting students');
-                    });
-            }
+            setIsConfirmationDialogOpen(true);
         }
+        
+    };
+  
+    const confirmDelete = () => {
+            
+        const url = `${student_url}/delete-multiple`;
+    
+        axios
+            .delete(url, { data: selectedRows })
+            .then((result) => {
+            toast.success('Selected students have been deleted');
+            const updatedData = data.filter((item) => !selectedRows.includes(item.id));
+            setData(updatedData);
+            setSelectedRows([]); 
+            })
+            .catch((error) => {
+            console.error('Error deleting students:', error);
+            toast.error('Error deleting students');
+        })
+        .finally(() => {
+            setIsConfirmationDialogOpen(false);
+        });
+    };
+
+    const closeConfirmationDialog = () => {
+        setIsConfirmationDialogOpen(false);
     };
 
     const handleUpdate = () =>{
@@ -220,14 +318,18 @@ const CRUD = () => {
         }
         axios.put(url, data)
         .then((result) => {
-            getData();
+            getData(pageNumber, pageSize, searchTerm, sortOrder);
             clear();
+            handleClose();
             toast.success('Student has been updated');
         }).catch((error)=>{
-            toast.error(error);
-            alert('A record with the same email or mobile number already exists.');
+            if(invalid){
+                toast.error('Invalid details')
+            }
+            else{
+                toast.error('A record with the same email or mobile number already exists.');
+            }
         })
-        setShow(false);
     }
 
     const handleSubmit = (e) => {
@@ -255,14 +357,18 @@ const CRUD = () => {
         .then((result) => {
             const generatedCode = result.data.code;
             setCode(generatedCode);
-            getData();
+            getData(pageNumber, pageSize, searchTerm, sortOrder);
             clear();
+            handleCloseForm();
             toast.success('Student has been added');
-        }).catch((error)=>{
-            toast.error(error);
-            alert('A record with the same email or mobile number already exists.');
+        }).catch((error) => {
+            if(invalid==true){
+                toast.error('Invalid details');
+            }
+            else{
+                toast.error('A record with the same email or mobile number already exists.');
+            }
         })
-        setShowForm(false);
     };
 
     const clear = () =>{
@@ -297,6 +403,11 @@ const CRUD = () => {
         setEditCon('');
         setEditMby(0);
         setEditMon('');
+    }
+
+    const handleAddButtonClick=() =>{
+         handleForm(); 
+         document.body.classList.add('modal-open');
     }
 
     const mapStatusValueToLabel = (value) => {
@@ -349,110 +460,243 @@ const CRUD = () => {
     };
 
     const validateName = (value) => {
-        setValidationErrors((prevErrors) => ({
-            ...prevErrors,
-            name: value.trim() !== '' ? (/^[a-zA-Z]+$/.test(value) ? '' : 'Name should contain only alphabets') : 'Name should not be empty',
-        }));
+        if (value.trim() !== '') {
+            if (/^[a-zA-Z\s]+$/.test(value)) {
+                setValidationErrors((prevErrors) => ({
+                    ...prevErrors,
+                    name: '',
+                }));
+                setInvalid((prevInvalid) => {
+                    return false;  
+                });
+            } else {
+                setValidationErrors((prevErrors) => ({
+                    ...prevErrors,
+                    name: 'Name should contain only alphabets',
+                }));
+                setInvalid((prevInvalid) => {
+                    return true;  
+                });
+            }
+        } else {
+            setValidationErrors((prevErrors) => ({
+                ...prevErrors,
+                name: 'Name should not be blank',
+            }));
+            setInvalid((prevInvalid) => {
+                return true;  
+            });
+        }
     };
 
     const validateEmail = (value) => {
-        setValidationErrors((prevErrors) => ({
-            ...prevErrors,
-            email: /^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(value) ? '' : 'Enter a valid email address',
-        }));
+        if (/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(value)) {
+            setValidationErrors((prevErrors) => ({
+                ...prevErrors,
+                email: '',
+            }));
+            setInvalid((prevInvalid) => {
+                return false;  
+            });
+        } else {
+            setValidationErrors((prevErrors) => ({
+                ...prevErrors,
+                email: 'Enter a valid email address',
+            }));
+            setInvalid((prevInvalid) => {
+                return true;  
+            });
+        }
     };
 
     const validateMobile = (value) => {
-        setValidationErrors((prevErrors) => ({
-            ...prevErrors,
-            mobile:/^\d{10}$/.test(value)
-            ? ''
-            : /^\d+$/.test(value)
-              ? 'Mobile number should be of 10 digits'
-              : 'Mobile number should only contain digits'
-        }));
+        if (/^[6-9]\d{9}$/.test(value)) {
+            setValidationErrors((prevErrors) => ({
+                ...prevErrors,
+                mobile: '',
+            }));
+            setInvalid((prevInvalid) => {
+                return false;  
+            });
+        } else {
+            if (/^\d{10}$/.test(value)) {
+                setValidationErrors((prevErrors) => ({
+                    ...prevErrors,
+                    mobile: 'Mobile number should start from 6, 7, 8, or 9',
+                }));
+            } else if (/^\d+$/.test(value)) {
+                setValidationErrors((prevErrors) => ({
+                    ...prevErrors,
+                    mobile: 'Mobile number should be of 10 digits',
+                }));
+            } else {
+                setValidationErrors((prevErrors) => ({
+                    ...prevErrors,
+                    mobile: 'Mobile number should only contain digits',
+                }));
+            }
+            setInvalid((prevInvalid) => {
+                return true;  
+            });
+        }
     };
 
     const validateEditName = (value) => {
-        setValidationErrors((prevErrors) => ({
-            ...prevErrors,
-            editName: value.trim() !== '' ? (/^[a-zA-Z]+$/.test(value) ? '' : 'Name should contain only alphabets') : 'Name should not be empty',
-        }));
+        if (value.trim() !== '') {
+            if (/^[a-zA-Z\s]+$/.test(value)) {
+                setValidationErrors((prevErrors) => ({
+                    ...prevErrors,
+                    editName: '',
+                }));
+                setInvalid((prevInvalid) => {
+                    return false;  
+                });
+            } else {
+                setValidationErrors((prevErrors) => ({
+                    ...prevErrors,
+                    editName: 'Name should contain only alphabets',
+                }));
+                setInvalid((prevInvalid) => {
+                    return true;  
+                });
+            }
+        } else {
+            setValidationErrors((prevErrors) => ({
+                ...prevErrors,
+                editName: 'Name should not be blank',
+            }));
+            setInvalid((prevInvalid) => {
+                return true;  
+            });
+        }
     };
     
     const validateEditEmail = (value) => {
-        setValidationErrors((prevErrors) => ({
-            ...prevErrors,
-            editEmail: /^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(value) ? '' : 'Enter a valid email address',
-        }));
+        if (/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(value)) {
+            setValidationErrors((prevErrors) => ({
+                ...prevErrors,
+                editEmail: '',
+            }));
+            setInvalid((prevInvalid) => {
+                return false;  
+            });
+        } else {
+            setValidationErrors((prevErrors) => ({
+                ...prevErrors,
+                editEmail: 'Enter a valid email address',
+            }));
+            setInvalid((prevInvalid) => {
+                return true;  
+            });
+        }
     };
     
     const validateEditMobile = (value) => {
-        setValidationErrors((prevErrors) => ({
-            ...prevErrors,
-            editMobile:/^\d{10}$/.test(value)
-            ? ''
-            : /^\d+$/.test(value)
-              ? 'Mobile number should be of 10 digits'
-              : 'Mobile number should only contain digits'
-        }));
+        if (/^[6-9]\d{9}$/.test(value)) {
+            setValidationErrors((prevErrors) => ({
+                ...prevErrors,
+                editMobile: '',
+            }));
+            setInvalid((prevInvalid) => {
+                return false;  
+            });
+        } else {
+            if (/^\d{10}$/.test(value)) {
+                setValidationErrors((prevErrors) => ({
+                    ...prevErrors,
+                    editMobile: 'Mobile number should start from 6, 7, 8, or 9',
+                }));
+            } else if (/^\d+$/.test(value)) {
+                setValidationErrors((prevErrors) => ({
+                    ...prevErrors,
+                    editMobile: 'Mobile number should be of 10 digits',
+                }));
+            } else {
+                setValidationErrors((prevErrors) => ({
+                    ...prevErrors,
+                    editMobile: 'Mobile number should only contain digits',
+                }));
+            }
+            setInvalid((prevInvalid) => {
+                return true;  
+            });
+        }
     };
     
+    const startIndex = (pageNumber - 1) * pageSize;
 
   return (
       <Fragment>
         <ToastContainer />
-        <div className='ad'>
-            <Button className='btn btn-primary' id='ad-space' onClick={handleAddButtonClick}>
-            Add
-            </Button>
-            <Button className="btn btn-danger" onClick={handleMultipleDelete}>
-                Delete
-            </Button>
+        <div>
+            <Header></Header>
         </div>
 
-        <Modal show={showForm} onHide={handleCloseForm}  dialogClassName="custom-modal" >
-            <Modal.Header closeButton>
-                <Modal.Title>Add New Student</Modal.Title>
-            </Modal.Header>
-            <Modal.Body>
-            <Row>
+        <div className='mid-body'>
+        <div className='ad'>
+        <div className="navbar">
+        <div className="navbar-heading">Student Record</div>
+        </div>
+        </div>
+        <div className="navbar-buttons">
+            <Tooltip title='Add Student'><button type="button" className="custom-btn custom-btn-primary" onClick={handleAddButtonClick}>
+            <AddIcon />
+            </button></Tooltip>
+            <Tooltip title='Delete'><button type="button" className="custom-btn custom-btn-danger"
+             onClick={handleMultipleDelete} disabled={selectedRows.length === 0}>
+            <DeleteIcon />
+            </button></Tooltip>
+            <ConfirmationDialog
+                isOpen={isConfirmationDialogOpen}
+                onClose={closeConfirmationDialog}
+                onConfirm={confirmDelete}
+            />
+        <SearchBar handleSearch={handleSearch} />
+        <button className='custom-btn custom-btn-primary' onClick={handleExportClick}><SaveIcon /></button>
+        </div>
+        <div>
+        {showForm && (
+            <div className='modal-container' ref={modalRef} >
+            <div className='modal-header'>
+            <span class="close-btn" onClick = {handleCloseForm}>&times;</span>
+                <h2>Add New Student</h2>
+            </div>
+            <div className='modal-body'>
                 {/* <Col>
                 <input type='text' className='form-control' placeholder='Student code' value={code}
                 readOnly />
                 </Col> */}
-                <Col>
-                <input type='text' className={`form-control ${validationErrors.name ? 'is-invalid' : ''}`} placeholder='Enter name' value={name} 
-                 onChange={handleNameChange}/>
+                <div className="custom-col">
                 {validationErrors.name && (
                     <div className='invalid-feedback'>{validationErrors.name}</div>
                 )}
-                </Col>
-                <Col>
-                <input type='text' className={`form-control ${validationErrors.email ? 'is-invalid' : ''}`} placeholder='Enter email' value={email}
-                onChange={handleEmailChange} />
+                <input type='text' className={`form-control ${validationErrors.name ? 'is-invalid' : ''}`} placeholder='Enter name' value={name} 
+                 onChange={handleNameChange}/>
+                </div>
+                <div className="custom-col">
                 {validationErrors.email && (
                     <div className='invalid-feedback'>{validationErrors.email}</div>
                 )}
-                </Col>
-                <Col>
-                <input type='text' className={`form-control ${validationErrors.mobile ? 'is-invalid' : ''}`} placeholder='Enter mobile no.' value={mobile}
-                onChange={handleMobileChange} />
+                <input type='text' className={`form-control ${validationErrors.email ? 'is-invalid' : ''}`} placeholder='Enter email' value={email}
+                onChange={handleEmailChange} />
+                </div>
+                <div className="custom-col">
                 {validationErrors.mobile && (
                     <div className='invalid-feedback'>{validationErrors.mobile}</div>
                 )}
-                </Col>
-            </Row><Row >
-                <Col>
+                <input type='text' className={`form-control ${validationErrors.mobile ? 'is-invalid' : ''}`} placeholder='Enter mobile no.' value={mobile}
+                onChange={handleMobileChange} />
+                </div>
+                <div className="custom-col">
                 <input type='text' className='form-control' placeholder='Enter address 1' value={address1}
                 onChange = {(e)=> setAdd1(e.target.value)} />
-                </Col>
-                <Col>
+                </div>
+                <div className="custom-col">
                 <input type='text' className='form-control' placeholder='Enter address 2' value={address2}
                 onChange = {(e)=> setAdd2(e.target.value)} />
-                </Col>
-                <Col>
-                <select className="form-control" value={state} onChange={(e) => {
+                </div>
+                <div className="custom-col">
+                <select className="form-control" data-dropup-auto="false" value={state} onChange={(e) => {
                     setState(e.target.value);
                     getCitiesByState(e.target.value);
                 }}>
@@ -463,8 +707,8 @@ const CRUD = () => {
                     </option>
                     ))}
                 </select>
-                </Col>
-                <Col>
+                </div>
+                <div className="custom-col">
                 <select className="form-control" value={city} 
                 onChange={(e) => setCity(e.target.value)}>
                     <option value="">--Select City--</option>
@@ -474,18 +718,16 @@ const CRUD = () => {
                     </option>
                     ))}
                 </select>
-                </Col>
-            </Row><Row>
-                <Col className='rad'>
-                <label>Gender:</label>
+                </div>
+                <div className="custom-col">
+                <label id='gen'>Gender:</label>
                 <input type="radio" name="gender" value="0" checked={gender === 0} 
                 onChange={(e) => {setGender(parseInt(e.target.value));}} /> Male &nbsp;
                 <input type="radio" name="gender" value="1" checked={gender === 1} 
                 onChange={(e) => {setGender(parseInt(e.target.value));}} /> Female
-                </Col>
-                <Col>
+                </div>
+                <div className="custom-col">
                 <select
-                    className='stat1'
                     id="status"
                     value={status}
                     onChange={(e) => setStatus(e.target.value)}
@@ -495,11 +737,11 @@ const CRUD = () => {
                     <option value={1}>Married</option>
                     <option value={2}>Separated</option>
                 </select>
-                </Col>
-                <Col>
+                </div>
+                <div className="custom-col" id='isActive-checkbox'>
                 <input className='check' type="checkbox" checked={isActive === 1 ? true : false} onChange={(e)=> handleActiveChange(e)} value={isActive} />
                 <label>Is Active</label>
-                </Col>
+                </div>
                 {/* <Col>
                 <input type='number' className='form-control' placeholder='Created by' value={createdBy} 
                 onChange={ (e) => setCby(e.target.value)}  />
@@ -517,39 +759,49 @@ const CRUD = () => {
                 <input type='datetime-local' className='form-control' placeholder='Modified on' value={modifiedOn} 
                 onChange={ (e) => setMon(e.target.value)}/>
                 </Col> */}
-            </Row>
-            </Modal.Body>
-            <Modal.Footer>
-                {/* <div className='error'>{validate}</div> */}
-                <Button variant="secondary" className='close' onClick={handleCloseForm}>
+            </div>
+            <div className='modal-footer'>
+                <button className='custom-btn custom-btn-secondary-close' onClick={handleCloseForm}>
                     Close
-                </Button>
-                <Button variant="primary" onClick={handleSubmit}>
+                </button>
+                <button className='custom-btn custom-btn-primary' onClick={handleSubmit}>
                     Save
-                </Button>
-            </Modal.Footer>
-        </Modal>
+                </button>
+            </div>
+        </div>
+        )}
+        </div>
         <div className="table-container">
-        <Table className='tab' striped bordered hover>
+        <table>
             <thead>
                 <tr>
                 <th>Select</th>
                 <th>S.No.</th>
                 <th>Student Code</th>
-                <th>Name</th>
+                <th onClick={handleSorting} className="sortable-header">
+                <span className="header-text">Name</span>
+                <span className='aero'>
+                {sortOrder === 'asc' ? <ArrowUpwardIcon /> : sortOrder ==='desc'? <ArrowDownwardIcon /> : <SwapVertIcon></SwapVertIcon>}
+                </span>
+                </th>
                 <th>Email</th>
-                <th>Mobile Number</th>
+                <th>Mobile</th>
                 <th>Address 1</th>
                 <th>Address 2</th>
-                <th>State</th>
+                <th onClick={handleSorting} className='sortable-header'>
+                <span className='header-text'>State</span>
+                <span className='aero'>
+                {sortOrder === 'asc' ? <ArrowUpwardIcon /> : sortOrder ==='desc'? <ArrowDownwardIcon /> : <SwapVertIcon></SwapVertIcon>}
+                </span>
+                </th>
                 <th>City</th>
                 <th>Gender</th>
                 <th>Marital Status</th>
                 {/* <th>IsActive</th> */}
-                <th>Created By</th>
+                {/* <th>Created By</th>
                 <th>Created On</th>
                 <th>Modified By</th>
-                <th>Modified On</th>
+                <th>Modified On</th> */}
                 <th>Actions</th>
                 </tr>
             </thead>
@@ -557,16 +809,18 @@ const CRUD = () => {
                 {
                     data && data.length >0?
                         data.map((item, index)=>{
+                            const serialNumber = startIndex + index + 1;
                             return(
-                                <tr key={index}>
+                                <tr key={serialNumber}>
                                     <td>
                                         <input
+                                        className='select-checkbox'
                                         type="checkbox"
                                         checked={selectedRows.includes(item.id)}
                                         onChange={() => handleCheckboxChange(item.id)}
                                         />
                                     </td>
-                                    <td>{index+1}</td>
+                                    <td>{serialNumber}</td>
                                     <td>{item.code}</td>
                                     <td>{item.name}</td>
                                     <td>{item.email}</td>
@@ -578,12 +832,12 @@ const CRUD = () => {
                                     <td>{item.gender === 0 ? "Male" : "Female"}</td>
                                     <td>{mapStatusValueToLabel(item.status)}</td>
                                     {/* <td>{item.isActive}</td> */}
-                                    <td>{item.createdBy}</td>
+                                    {/* <td>{item.createdBy}</td>
                                     <td>{item.createdOn}</td>
                                     <td>{item.modifiedBy}</td>
-                                    <td>{item.modifiedOn}</td>
+                                    <td>{item.modifiedOn}</td> */}
                                     <td colSpan={2}>
-                                        <button className='btn btn-primary' onClick={() => {getCitiesByState(item.state); handleEdit(item.id);}}>Edit</button> &nbsp;
+                                    <Tooltip title="Edit Details"><button className='custom-btn custom-btn-primary' id='edit-btn' onClick={() => {getCitiesByState(item.state); handleEdit(item.id);}}><BorderColorIcon /></button> </Tooltip>&nbsp;
                                         {/* <button className='btn btn-danger' onClick={() => handleDelete(item.id)}>Delete</button> */}
                                     </td>
                                 </tr>
@@ -593,60 +847,85 @@ const CRUD = () => {
                         'Loading..'
                 }
             </tbody>
-        </Table>
+        </table>
         </div>
-        <Modal show={show} onHide={handleClose}  dialogClassName="custom-modal">
-            <Modal.Header closeButton>
-                <Modal.Title>Edit Student</Modal.Title>
-            </Modal.Header>
-            <Modal.Body>
-            <Row>
-                <Col>
-                Student Code<input id='std-code' type='text' className='form-control' value={EditCode}
+        <div className='page'>
+        <div className='page-buttons'>
+            <Tooltip title='Previous Page'>
+            <button className='custom-btn page-btn' onClick={handlePrevious} disabled={pageNumber === 1}><KeyboardDoubleArrowLeftIcon /></button>
+            </Tooltip>
+            <span className='paging-title'>{`Page ${pageNumber} of ${totalPages}`}</span>
+            <Tooltip title='Next Page'>
+            <button className='custom-btn page-btn' onClick={handleNext} disabled={pageNumber === totalPages}><KeyboardDoubleArrowRightIcon /></button>
+            </Tooltip>
+        </div>
+        <div className='itemsPerPage'>
+            <label>Items per page : </label>
+            <select className='page-select' value={pageSize} onChange={(e) => handleItemsPerPageChange(Number(e.target.value))}>
+            {renderDropdownOptions()}
+            </select>
+        </div>
+        </div>
+        
+        <div>
+        {show && (
+            <div className='modal-container' ref={modalRef} >
+            <div className='modal-header'>
+                <span class="close-btn" onClick = {handleClose}>&times;</span>
+                <h2>Edit Student</h2>
+            </div>
+            <div className='modal-body'>
+                <div className="custom-col">
+                <label htmlFor='code'>Code : </label>
+                <input id='std-code' type='text' className='form-control' value={EditCode}
                 readOnly />
-                </Col>
-                <Col>
-                Name<input type='text' className={`form-control ${validationErrors.editName ? 'is-invalid' : ''}`} placeholder='Enter name' value={EditName}
+                </div>
+                <div className="custom-col">
+                {validationErrors.editName && (
+                    <div className='invalid-feedback'>{validationErrors.editName}</div>
+                )}
+                <label>Name : </label>
+                <input type='text' className={`form-control ${validationErrors.editName ? 'is-invalid' : ''}`} placeholder='Enter name' value={EditName}
                 onChange={(e) => {
                     setEditName(e.target.value);
                     validateEditName(e.target.value);
                 }}
                 />
-                {validationErrors.editName && (
-                    <div className='invalid-feedback'>{validationErrors.editName}</div>
+                </div>
+                <div className="custom-col">
+                {validationErrors.editEmail && (
+                    <div className='invalid-feedback'>{validationErrors.editEmail}</div>
                 )}
-                </Col>
-                <Col>
-                Email<input type='text' className={`form-control ${validationErrors.editEmail ? 'is-invalid' : ''}`} placeholder='Enter email' value={EditEmail} 
+                <label htmlFor='email'>Email : </label>
+                <input type='text' className={`form-control ${validationErrors.editEmail ? 'is-invalid' : ''}`} placeholder='Enter email' value={EditEmail} 
                 onChange={(e) => {
                     setEditEmail(e.target.value);
                     validateEditEmail(e.target.value);
                 }} />
-                {validationErrors.editEmail && (
-                    <div className='invalid-feedback'>{validationErrors.editEmail}</div>
-                )}
-                </Col>
-                <Col>
-                Mobile No.<input type='text' className={`form-control ${validationErrors.editMobile ? 'is-invalid' : ''}`} placeholder='Enter mobile number' value={EditMob}
-               onChange={(e) => {
-                setEditMob(e.target.value);
-                validateEditMobile(e.target.value);
-                }} />
+                </div>
+                <div className="custom-col">
                 {validationErrors.editMobile && (
                     <div className='invalid-feedback'>{validationErrors.editMobile}</div>
                 )}
-                </Col>
-            </Row><Row>
-                <Col>
-                Address-1<input type='text' className='form-control' placeholder='Enter address 1' value={EditAdd1}
+                <label>Mobile: </label><input type='text' className={`form-control ${validationErrors.editMobile ? 'is-invalid' : ''}`} placeholder='Enter mobile number' value={EditMob}
+                onChange={(e) => {
+                setEditMob(e.target.value);
+                validateEditMobile(e.target.value);
+                }} />
+                </div>
+                <div className="custom-col">
+                <label htmlFor='address1'>Address 1 : </label>
+                <input type='text' className='form-control' placeholder='Enter address 1' value={EditAdd1}
                 onChange={ (e) => setEditAdd1(e.target.value)} />
-                </Col>
-                <Col>
-                Address-2<input type='text' className='form-control' placeholder='Enter address 2' value={EditAdd2}
+                </div>
+                <div className="custom-col">
+                <label htmlFor='address2'>Address 2 : </label>
+                <input type='text' className='form-control' placeholder='Enter address 2' value={EditAdd2}
                 onChange={ (e) => setEditAdd2(e.target.value)} />
-                </Col>
-                <Col>
-                State<select className="form-control" value={EditState} onChange={(e) => {
+                </div>
+                <div className="custom-col">
+                <label>State : </label>
+                <select className="form-control" value={EditState} onChange={(e) => {
                     setEditState(e.target.value);
                     getCitiesByState(e.target.value);   
                 }}>
@@ -657,9 +936,10 @@ const CRUD = () => {
                     </option>
                     ))}
                 </select>
-                </Col>
-                <Col>
-                City<select className="form-control" value={EditCity} 
+                </div>
+                <div className="custom-col">
+                <label>City : </label>
+                <select className="form-control" value={EditCity} 
                 onChange={(e) => setEditCity(e.target.value)}>
                     <option value="">--Select City--</option>
                     {cities.map((city) => (
@@ -668,17 +948,17 @@ const CRUD = () => {
                     </option>
                     ))}
                 </select>
-                </Col>
-            </Row><Row>
-                <Col>
+                </div>
+                <div className="custom-col">
                 <label>Gender: </label>
                 <input type="radio" name="gender" value="0" checked={EditGender === 0} 
                 onChange={(e) => {setEditGender(parseInt(e.target.value));}} /> Male &nbsp;
                 <input type="radio" name="gender" value="1" checked={EditGender === 1} 
                 onChange={(e) => {setEditGender(parseInt(e.target.value));}} /> Female
-                <label className='ms'>Marital Status :</label>
-                <select
-                    className='stat2'
+                </div>
+                <br></br>
+                <div className="custom-col" id='m-status'>
+                <label>Marital: <br></br>Status</label><select
                     id="status"
                     value={EditStatus}
                     onChange={(e) => setEditStatus(e.target.value)}
@@ -688,7 +968,7 @@ const CRUD = () => {
                     <option value={1}>Married</option>
                     <option value={2}>Separated</option>
                 </select>
-                </Col>
+                </div>
                 {/* <Col>
                 <input className='check' type='checkbox'  checked={isActive === 1 ? true : false}
                 onChange={(e) => {handleEditActiveChange(e)}} value={EditIsActive}/>
@@ -711,18 +991,22 @@ const CRUD = () => {
                 Modified On<input type='datetime-local' className='form-control' placeholder='Modified on' value={EditMon}
                 onChange={ (e) => setEditMon(e.target.value)} readOnly/>
                 </Col> */}
-            </Row>
-            </Modal.Body>
-            <Modal.Footer>
-            {/* <div className='error'>{validate}</div> */}
-                <Button variant="secondary" className='close' onClick={handleClose}>
+           </div>
+            <div className='modal-footer'>
+                <button  className='custom-btn custom-btn-secondary-close' onClick={handleClose}>
                     Close
-                </Button>
-                <Button variant="primary" onClick={handleUpdate}>
-                    Save Changes
-                </Button>
-            </Modal.Footer>
-        </Modal>
+                </button>
+                <button className='custom-btn custom-btn-primary' onClick={handleUpdate}>
+                    Save
+                </button>
+                </div>
+        </div>
+        )}
+        </div>
+        </div>
+        <div>
+            <Footer></Footer>
+        </div>
       </Fragment>
   )
 }
