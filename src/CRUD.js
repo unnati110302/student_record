@@ -19,9 +19,11 @@ import SaveIcon from '@mui/icons-material/Save';
 import Tooltip from '@mui/material/Tooltip';
 import SearchBar from './SearchBar';
 import * as XLSX from 'xlsx';
+import { useNavigate } from 'react-router-dom';
+import PersonIcon from '@mui/icons-material/Person';
 
 
-const CRUD = () => {
+const CRUD = ({ userName }) => {
 
     const [show, setShow] = useState(false);
 
@@ -35,8 +37,8 @@ const CRUD = () => {
     const [totalPages, setTotalPages] = useState(1); 
     const [pageSize, setPageSize] = useState(5);
     const [searchTerm, setSearchTerm] = useState('');
-    const [sortOrder, setSortOrder] = useState('none'); 
-
+    const [sortOrder, setSortOrder] = useState(''); 
+    const [sortAttribute, setSortAttribute] = useState(''); 
 
     const [validationErrors, setValidationErrors] = useState({
         name: '',
@@ -118,10 +120,12 @@ const CRUD = () => {
     const modalRef = useRef();
     const [invalid, setInvalid] = useState(false);
 
+    const navigate = useNavigate();
+
     useEffect(() => {
         getStates();
-        getData(pageNumber, pageSize, searchTerm, sortOrder);
-    
+        getData(pageNumber, pageSize, searchTerm, sortAttribute, sortOrder);
+   
         const handleDocumentClick = (event) => {
             const modalContainer = modalRef.current;
             if (modalContainer && !modalContainer.contains(event.target)) {
@@ -129,13 +133,13 @@ const CRUD = () => {
                 handleClose();
             }
         };
-    
+   
         document.addEventListener('mousedown', handleDocumentClick);
-    
+   
         return () => {
             document.removeEventListener('mousedown', handleDocumentClick);
         };
-    }, [pageNumber, pageSize, searchTerm, sortOrder]);
+    }, [pageNumber, pageSize, searchTerm, sortAttribute, sortOrder]);
 
 
     const getStates = async () => {
@@ -156,13 +160,13 @@ const CRUD = () => {
         }
     };
 
-    const getData = (pageNumber, pageSize, search = '', sortOrder = 'none', shouldExport = false) =>{
-        axios.get(`${student_url}?pageNumber=${pageNumber}&pageSize=${pageSize}&search=${search}&sortOrder=${sortOrder}`)
+    const getData = (pageNumber, pageSize, search = '', sortAttribute = '', sortOrder= '' ,shouldExport = false) =>{
+        axios.get(`${student_url}?pageNumber=${pageNumber}&pageSize=${pageSize}&search=${searchTerm}&sortAttribute=${sortAttribute}&sortOrder=${sortOrder}`)
         .then((result)=>{
             setData(result.data.data)
             setCode(result.data.data[0]?.code);    
             setTotalPages(result.data.totalPages);
-        
+       
         if (shouldExport) {
             exportToExcel(result.data.data, 'Student_Record');
         }
@@ -171,13 +175,14 @@ const CRUD = () => {
             console.log(error)
         })
     }
+ 
 
     const handleSearch = (searchTerm) => {
         setSearchTerm(searchTerm);
         setPageNumber(1); 
         getData(1, pageSize, searchTerm, sortOrder);
     };
-
+    
     const exportToExcel = (data, fileName) => {
         const ws = XLSX.utils.json_to_sheet(data);
         const wb = XLSX.utils.book_new();
@@ -185,14 +190,25 @@ const CRUD = () => {
         XLSX.writeFile(wb, `${fileName}.xlsx`);
     };
 
-    const handleSorting = () => {
-        // setSortOrder((prevOrder) => (prevOrder === 'asc' ? 'desc' : 'asc'));
-        setSortOrder((prevOrder) => (prevOrder === null ? 'asc' : prevOrder === 'asc' ? 'desc' : 'asc'));
-        getData(pageNumber, pageSize, searchTerm, sortOrder);
-    };
+    const handleSorting = (attribute) =>{
+        // if(sortAttribute === attribute){
+        //     setSortOrder(sortOrder==='' ? 'asc' : (sortOrder === 'asc' ? 'desc' : 'asc'));
+     
+        let newSortOrder;
+        if (sortAttribute === attribute) {
+            newSortOrder = sortOrder === '' ? 'asc' : (sortOrder === 'asc' ? 'desc' : 'asc');
+        } else {
+            newSortOrder = '';
+        }
+        getData(pageNumber, pageSize, searchTerm, attribute, newSortOrder);
+ 
+        setSortAttribute(attribute);
+        setSortOrder(newSortOrder);
+ 
+    }
 
     const handleExportClick = () => {
-        getData(pageNumber, pageSize, searchTerm, sortOrder, true);
+        getData(pageNumber, pageSize, searchTerm, sortAttribute, sortOrder, true);
     };
 
     const handlePrevious = () => {
@@ -636,6 +652,21 @@ const CRUD = () => {
         <div className='ad'>
         <div className="navbar">
         <div className="navbar-heading">Student Record</div>
+        {/* <div className='user'>
+        <PersonIcon className='icon'/>
+        <div className="dropdown-content2">
+            <a href="#">Logout</a>
+        </div>
+        <h4>{userName}</h4>
+        </div> */}
+        <div className="dropdown-container">
+            <div className="dropdown">
+                <button className="dropbtn u"><PersonIcon className='icon'/><h4>{userName}</h4></button>
+                <div className="dropdown-content">
+                    <a href="http://localhost:3000/">Logout</a>
+                </div>
+            </div>
+        </div>
         </div>
         </div>
         <div className="navbar-buttons">
@@ -651,6 +682,14 @@ const CRUD = () => {
                 onClose={closeConfirmationDialog}
                 onConfirm={confirmDelete}
             />
+            <div className="dropdown-container">
+                <div className="dropdown">
+                    <button className="dropbtn a" onClick={()=>{navigate('/userManagement')}}>Add User</button>
+                    {/* <div className="dropdown-content">
+                        <a href="http://localhost:3000/">Logout</a>
+                    </div> */}
+                </div>
+            </div>
         <SearchBar handleSearch={handleSearch} />
         <button className='custom-btn custom-btn-primary' onClick={handleExportClick}><SaveIcon /></button>
         </div>
@@ -777,24 +816,49 @@ const CRUD = () => {
                 <tr>
                 <th>Select</th>
                 <th>S.No.</th>
-                <th>Student Code</th>
-                <th onClick={handleSorting} className="sortable-header">
-                <span className="header-text">Name</span>
-                <span className='aero'>
-                {sortOrder === 'asc' ? <ArrowUpwardIcon /> : sortOrder ==='desc'? <ArrowDownwardIcon /> : <SwapVertIcon></SwapVertIcon>}
-                </span>
+                <th onClick={() => handleSorting('code')} className="sortable-header">
+                    <span className="header-text">Student Code</span>
+                    <span className='aero'>
+                        {sortAttribute !== 'code'?<SwapVertIcon />:(sortOrder === 'asc' ? <ArrowUpwardIcon /> : <ArrowDownwardIcon />)}
+                    </span>
                 </th>
-                <th>Email</th>
+                <th onClick={() => handleSorting('name')} className="sortable-header">
+                    <span className="header-text">Name</span>
+                    <span className='aero'>
+                        {sortAttribute !== 'name'?<SwapVertIcon />:(sortOrder === 'asc' ? <ArrowUpwardIcon /> : <ArrowDownwardIcon />)}
+                    </span>
+                </th>
+                <th onClick={() => handleSorting('email')} className="sortable-header">
+                    <span className="header-text">Email</span>
+                    <span className='aero'>
+                        {sortAttribute !== 'email'?<SwapVertIcon />:(sortOrder === 'asc' ? <ArrowUpwardIcon /> : <ArrowDownwardIcon />)}
+                    </span>
+                </th>
                 <th>Mobile</th>
-                <th>Address 1</th>
-                <th>Address 2</th>
-                <th onClick={handleSorting} className='sortable-header'>
-                <span className='header-text'>State</span>
-                <span className='aero'>
-                {sortOrder === 'asc' ? <ArrowUpwardIcon /> : sortOrder ==='desc'? <ArrowDownwardIcon /> : <SwapVertIcon></SwapVertIcon>}
-                </span>
+                <th onClick={() => handleSorting('address1')} className="sortable-header">
+                    <span className="header-text">Address 1</span>
+                    <span className='aero'>
+                        {sortAttribute !== 'address1'?<SwapVertIcon />:(sortOrder === 'asc' ? <ArrowUpwardIcon /> : <ArrowDownwardIcon />)}
+                    </span>
                 </th>
-                <th>City</th>
+                <th onClick={() => handleSorting('address2')} className="sortable-header">
+                    <span className="header-text">Address 2</span>
+                    <span className='aero'>
+                        {sortAttribute !== 'address2'?<SwapVertIcon />:(sortOrder === 'asc' ? <ArrowUpwardIcon /> : <ArrowDownwardIcon />)}
+                    </span>
+                </th>
+                <th onClick={() => handleSorting('stateName')} className="sortable-header">
+                    <span className="header-text">State</span>
+                    <span className='aero'>
+                    {sortAttribute !== 'stateName'?<SwapVertIcon />:(sortOrder === 'asc' ? <ArrowUpwardIcon /> : <ArrowDownwardIcon />)}
+                    </span>
+                </th>
+                <th onClick={() => handleSorting('city')} className="sortable-header">
+                    <span className="header-text">City</span>
+                    <span className='aero'>
+                        {sortAttribute !== 'city'?<SwapVertIcon />:(sortOrder === 'asc' ? <ArrowUpwardIcon /> : <ArrowDownwardIcon />)}
+                    </span>
+                </th>
                 <th>Gender</th>
                 <th>Marital Status</th>
                 {/* <th>IsActive</th> */}
