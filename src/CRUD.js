@@ -1,4 +1,4 @@
-import React, {useState, useEffect, Fragment, useRef} from 'react';
+import React, {useState, useEffect, Fragment, useRef  } from 'react';
 import './style.css';
 import axios from 'axios';
 import { ToastContainer, toast } from 'react-toastify';
@@ -23,7 +23,7 @@ import { useNavigate } from 'react-router-dom';
 import PersonIcon from '@mui/icons-material/Person';
 
 
-const CRUD = ({ userName }) => {
+const CRUD = ({ userName, role }) => {
 
     const [show, setShow] = useState(false);
 
@@ -421,6 +421,23 @@ const CRUD = ({ userName }) => {
         setEditMon('');
     }
 
+    const renderViewAsOptions = () => {
+        if (role.includes('Admin') && role.includes('User')) {
+            return (
+                <>
+                    {/* <a className='render' href="#">View as admin</a> */}
+                    <button className='render' onClick={()=>{navigate('/user')}}>View as user</button>
+                </>
+            );
+        // } else if (role.includes('Admin')) {
+        //     return <a href="#">View as Admin</a>;
+        } else if (role.includes('User')) {
+            return <button className='render' onClick={()=>{navigate('/user')}}>View as User</button>;
+        } else {
+            return null; 
+        }
+    };
+
     const handleAddButtonClick=() =>{
          handleForm(); 
          document.body.classList.add('modal-open');
@@ -473,6 +490,13 @@ const CRUD = ({ userName }) => {
         const inputValue = e.target.value;
         setMob(inputValue);
         validateMobile(inputValue);
+    };
+
+    const handleSelectAll = (event) => {
+        const checked = event.target.checked;
+        const selectedIds = checked ? data.map(item => item.id) : [];
+    
+        setSelectedRows(selectedIds);
     };
 
     const validateName = (value) => {
@@ -663,33 +687,36 @@ const CRUD = ({ userName }) => {
             <div className="dropdown">
                 <button className="dropbtn u"><PersonIcon className='icon'/><h4>{userName}</h4></button>
                 <div className="dropdown-content">
-                    <a href="http://localhost:3000/">Logout</a>
+                    <button className='render' onClick={()=>{navigate('/')}}>Logout</button>
+                    <button  className='render' onClick={()=>{navigate('/userManagement')}}>User Records</button>
+                    {renderViewAsOptions()}
                 </div>
             </div>
         </div>
         </div>
         </div>
         <div className="navbar-buttons">
-            <Tooltip title='Add Student'><button type="button" className="custom-btn custom-btn-primary" onClick={handleAddButtonClick}>
+            <Tooltip title='Add Student'><span><button type="button" className="custom-btn custom-btn-primary" onClick={handleAddButtonClick}>
             <AddIcon />
-            </button></Tooltip>
-            <Tooltip title='Delete'><button type="button" className="custom-btn custom-btn-danger"
+            </button></span></Tooltip>
+            <Tooltip title='Delete'><span><button type="button" className="custom-btn custom-btn-danger"
              onClick={handleMultipleDelete} disabled={selectedRows.length === 0}>
             <DeleteIcon />
-            </button></Tooltip>
+            </button></span></Tooltip>
             <ConfirmationDialog
                 isOpen={isConfirmationDialogOpen}
                 onClose={closeConfirmationDialog}
                 onConfirm={confirmDelete}
             />
-            <div className="dropdown-container">
+            {/* <div className="dropdown-container">
                 <div className="dropdown">
                     <button className="dropbtn a" onClick={()=>{navigate('/userManagement')}}>Add User</button>
-                    {/* <div className="dropdown-content">
+                    <div className="dropdown-content">
                         <a href="http://localhost:3000/">Logout</a>
-                    </div> */}
+                    </div> 
                 </div>
-            </div>
+            </div> */}
+            <div className='viewingAs'><h4>Viewing as Admin</h4></div>
         <SearchBar handleSearch={handleSearch} />
         <button className='custom-btn custom-btn-primary' onClick={handleExportClick}><SaveIcon /></button>
         </div>
@@ -814,7 +841,14 @@ const CRUD = ({ userName }) => {
         <table>
             <thead>
                 <tr>
-                <th>Select</th>
+                <th id='select-header'>
+                     <input
+                        className='select-checkbox'
+                        type="checkbox"
+                        onChange={handleSelectAll}
+                        checked={selectedRows.length === data.length && data.length !== 0}
+                    />
+                </th>
                 <th>S.No.</th>
                 <th onClick={() => handleSorting('code')} className="sortable-header">
                     <span className="header-text">Student Code</span>
@@ -901,7 +935,7 @@ const CRUD = ({ userName }) => {
                                     <td>{item.modifiedBy}</td>
                                     <td>{item.modifiedOn}</td> */}
                                     <td colSpan={2}>
-                                    <Tooltip title="Edit Details"><button className='custom-btn custom-btn-primary' id='edit-btn' onClick={() => {getCitiesByState(item.state); handleEdit(item.id);}}><BorderColorIcon /></button> </Tooltip>&nbsp;
+                                    <Tooltip title="Edit Details"><span><button className='custom-btn custom-btn-primary' id='edit-btn' onClick={() => {getCitiesByState(item.state); handleEdit(item.id);}}><BorderColorIcon /></button></span></Tooltip>&nbsp;
                                         {/* <button className='btn btn-danger' onClick={() => handleDelete(item.id)}>Delete</button> */}
                                     </td>
                                 </tr>
